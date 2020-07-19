@@ -58,6 +58,20 @@ struct device_info {
     pa_usec_t timeout;
 };
 
+static void amp_control(const char *sink_name, int power_on) {
+    char cmd[200];
+    int exit_code;
+
+    strcpy(cmd, "/usr/share/pulseaudio/amp_control '");
+    strcat(cmd, sink_name);
+    strcat(cmd, "' ");
+    strcat(cmd, power_on ? "1" : "0");
+
+    exit_code = system(cmd);
+
+    pa_log_debug("Amplifier control script %s returned %d.", cmd, exit_code);
+}
+
 static void timeout_cb(pa_mainloop_api*a, pa_time_event* e, const struct timeval *t, void *userdata) {
     struct device_info *d = userdata;
 
@@ -69,6 +83,7 @@ static void timeout_cb(pa_mainloop_api*a, pa_time_event* e, const struct timeval
         pa_log_info("Sink %s idle for too long, suspending ...", d->sink->name);
         pa_sink_suspend(d->sink, true, PA_SUSPEND_IDLE);
         pa_core_maybe_vacuum(d->userdata->core);
+        amp_control(d->sink->name, 0);
     }
 
     if (d->source && pa_source_check_suspend(d->source, NULL) <= 0 && !(d->source->suspend_cause & PA_SUSPEND_IDLE)) {
@@ -100,6 +115,7 @@ static void resume(struct device_info *d) {
 
     if (d->sink) {
         pa_log_debug("Sink %s becomes busy, resuming.", d->sink->name);
+        amp_control(d->sink->name, 1);
         pa_sink_suspend(d->sink, false, PA_SUSPEND_IDLE);
     }
 
